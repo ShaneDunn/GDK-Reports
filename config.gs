@@ -30,10 +30,21 @@ function getConfigsStartingAtCol_(sheet, colIndex) {
 
   columnDef = false;
 
+  // The first cell of the first column becomes the name of the query.
+  config.report = range.getCell(1,1).getValue();
+
   for (rowIndex = 2; rowIndex <= range.getLastRow(); ++rowIndex) {
     key = range.getCell(rowIndex, 1).getValue();
     value = escapeQuotes(range.getCell(rowIndex, 2).getValue());
     if (value) {
+      if ((key == 'start-date' || key == 'end-date') && value instanceof Date) {
+        // Utilities.formatDate is too complicated since it requires a time zone
+        // which can be configured by account or per sheet.
+        value = formatGaDate_(value);
+        
+      } else if ((key == 'start-index' || key == 'max-results') && typeof value == 'number') {
+        value = value.toString(); 
+      }
       var trailNum = getTrailingNumber_(key)
       if ( columnDef && trailNum ) {
         config[tblName][trailNum] = escapeQuotes(value);
@@ -137,6 +148,27 @@ function getTrailingNumber_(input) {
   }
   
   return undefined;
+}
+
+/**
+ * Returns the dateInput object in yyyy-MM-dd.
+ * @param {Date} dateInput The object to convert.
+ * @returns {string} The date object as yyyy-MM-dd.
+ */
+function formatGaDate_(inputDate) {
+  var output = [];
+  var year = inputDate.getFullYear();
+
+  var month = inputDate.getMonth() + 1;
+  if (month < 10) {
+    month = '0' + month; 
+  }
+
+  var day = inputDate.getDate();
+  if (day < 10) {
+    day = '0' + day; 
+  }
+  return [year, month, day].join('-');
 }
 
 function escapeQuotes(value) {

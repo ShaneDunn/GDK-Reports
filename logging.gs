@@ -41,23 +41,30 @@ function getLog_() {
 function log_(value) {
   logArray_.push(value);
   
-  var app = UiApp.getActiveApplication();
-  var foo = app.getElementById('log');
-  foo.setText(getLog_());
+  // var app = UiApp.getActiveApplication();
+  // var foo = app.getElementById('log');
+  // foo.setText(getLog_());
 }
 
 /**
  * Displays the log in memory to the user.
  */
 function displayLog_() {
-  var uiLog = UiApp.createApplication().setTitle('Report Status').setWidth(400).setHeight(500);
-  var panel = uiLog.createVerticalPanel();
-  uiLog.add(panel);
+  // var uiLog = UiApp.createApplication().setTitle('Report Status').setWidth(400).setHeight(500);
+  // var panel = uiLog.createVerticalPanel();
+  // uiLog.add(panel);
 
-  var txtOutput = uiLog.createTextArea().setId('log').setWidth('400').setHeight('500').setValue(getLog_());
-  panel.add(txtOutput);
+  // var txtOutput = uiLog.createTextArea().setId('log').setWidth('400').setHeight('500').setValue(getLog_());
+  // panel.add(txtOutput);
   
-  SpreadsheetApp.getActiveSpreadsheet().show(uiLog); 
+  // SpreadsheetApp.getActiveSpreadsheet().show(uiLog);
+
+  var html="<p>";
+  html+=logArray_.join('<br />'); 
+  html+='</p>';
+  var userInterface=HtmlService.createHtmlOutput(html);
+  SpreadsheetApp.getUi().showModelessDialog(userInterface, 'GDK Report Status')
+
 }
 
 function showLogDialog_() {

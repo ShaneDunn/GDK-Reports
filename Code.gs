@@ -73,7 +73,25 @@ function checkAuthorization() {
 /**
  * Create the printWater_Statement for printing
  */
-function printWater_Statement() {
+function printWater_Statement(e) {
+  setupLog_();
+  var i, config, configName, sheet;
+  log_('Running on: ' + now);
+  
+  var configs = getConfigs_(getOrCreateSheet_(CONFIG_SHEET));
+  
+  if (!configs.length) {
+    log_('No report configurations found');
+  } else {
+    log_('Found ' + configs.length + ' report configurations.');
+    run_report("Water Statement","Print");
+  }
+  log_('Script done');
+    
+  // Update the user about the status of the queries.
+  if( e === undefined ) {
+    displayLog_();
+  } 
 }
 
 /**
@@ -104,4 +122,36 @@ function emailWater_Advice() {
  * Create the emailWater_Request for email
  */
 function emailWater_Request() {
+}
+
+function get_report_config(report, configs) {
+  var i, config, configName, sheet;
+  for (i = 0; config = configs[i]; ++i) {
+    configName = config.report;
+    if (config['Report_Name'] === report) {
+      log_('Using configuration from: ' + configName);
+      return config;
+    }
+  }
+  log_('No Report_Name found: ' + report);
+}
+
+function run_report(report, action) {
+  var configs = getConfigs_(getOrCreateSheet_(CONFIG_SHEET));
+  var config = get_report_config(report, configs);
+  if (config['Report_Name']) {
+    if (config.templateDocID) {
+      try {
+        log_('Creating Report: ' + config['Report_Name']);
+        // sheet = getOrCreateSheet_(config['sheet-name']);
+        // populateSheetWithCSV_(sheet, config.url, config['http-username'], config['http-password']);
+      } catch (error) {
+        log_('Error executing ' + config['Report_Name'] + ': ' + error.message);
+      }
+    } else {
+      log_('No Template found: ' + config.templateDocID);
+    }
+  } else {
+    log_('No Report_Name found: ' + report);
+  }
 }
