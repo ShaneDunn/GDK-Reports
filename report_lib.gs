@@ -7,7 +7,7 @@ function getRowsData(sheet, range, columnHeadersRowIndex) {
   var numColumns = range.getEndColumn() - range.getColumn() + 1;
   var headersRange = sheet.getRange(columnHeadersRowIndex, range.getColumn(), 1, numColumns);
   var headers = headersRange.getValues()[0];
-  return getObjects(range.getValues(), normalizeHeaders(headers));
+  return getObjects(range.getDisplayValues(), normalizeHeaders(headers));
 }
 
 function getObjects(data, keys) {
@@ -80,6 +80,18 @@ function isDigit(char) {
   return char >= '0' && char <= '9';
 }
 
+function fillInTemplateFromObject(template, data) {
+  var doc = template;
+  // Search for all the variables to be replaced, for instance <<columnName>>
+  var templateVars = template.match(/<<[^>]+>>/g);
+  // Replace variables from the template with the actual values from the data object.
+  for (var i = 0; i < templateVars.length; ++i) {
+    var variableData = data[normalizeHeader(templateVars[i])];
+    doc = doc.replaceText(templateVars[i], variableData || '');
+  }
+  return doc;
+}
+
 function sendEmails() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var dataSheet = ss.getSheets()[0];
@@ -101,32 +113,10 @@ function sendEmails() {
   }
 }
 
-function fillInTemplateFromObject(template, data) {
-  var email = template;
-  // Search for all the variables to be replaced, for instance ${"Column name"}
-  var templateVars = template.match(/\$\{\"[^\"]+\"\}/g);
-  // Replace variables from the template with the actual values from the data object.
-  for (var i = 0; i < templateVars.length; ++i) {
-    var variableData = data[normalizeHeader(templateVars[i])];
-    email = email.replace(templateVars[i], variableData || '');
-  }
-  return email;
-}
-
 
 // http://www.andrewroberts.net/2014/10/google-apps-script-create-pdf/
 
 // dev: andrewroberts.net
-
-// Replace this with ID of your template document.
-var TEMPLATE_ID = ''
-
-// var TEMPLATE_ID = '1wtGEp27HNEVwImeh2as7bRNw-tO4HkwPGcAsTrSNTPc' // Demo template
-// Demo script - http://bit.ly/createPDF
- 
-// You can specify a name for the new PDF file here, or leave empty to use the 
-// name of the template.
-var PDF_FILE_NAME = ''
 
 /**  
  * Take the fields from the active row in the active sheet
@@ -137,49 +127,47 @@ var PDF_FILE_NAME = ''
  * @return {Object} the completed PDF file
  */
 
-function createPdf() {
-
-  if (TEMPLATE_ID === '') {
-    
-    SpreadsheetApp.getUi().alert('TEMPLATE_ID needs to be defined in code.gs')
-    return
-  }
+function createPdf(config, action) {
 
   // Set up the docs and the spreadsheet access
   
-  var copyFile = DriveApp.getFileById(TEMPLATE_ID).makeCopy(),
-      copyId = copyFile.getId(),
-      copyDoc = DocumentApp.openById(copyId),
-      copyBody = copyDoc.getActiveSection(),
-      activeSheet = SpreadsheetApp.getActiveSheet(),
-      numberOfColumns = activeSheet.getLastColumn(),
-      activeRowIndex = activeSheet.getActiveRange().getRowIndex(),
-      activeRow = activeSheet.getRange(activeRowIndex, 1, 1, numberOfColumns).getValues(),
-      headerRow = activeSheet.getRange(1, 1, 1, numberOfColumns).getValues(),
-      columnIndex = 0
+  var copyFile = DriveApp.getFileById(config.templateID).makeCopy();
+  var copyId = copyFile.getId();
+  var copyDoc = DocumentApp.openById(copyId);
+  var copyBody = copyDoc.getActiveSection();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dataSheet = ss.getSheetByName("Report_Data");
+  var dataRange = dataSheet.getRange(3, 1, dataSheet.getLastRow() - 2, dataSheet.getLastColumn());
+  var objects = getRowsData(dataSheet, dataRange);
+  var season = objects[0]['season'];
+  var water_no = objects[0]['wateringNo'];
  
-  // Replace the keys with the spreadsheet values
- 
-  for (;columnIndex < headerRow[0].length; columnIndex++) {
-    
-    copyBody.replaceText('%' + headerRow[0][columnIndex] + '%', 
-                         activeRow[0][columnIndex])                         
+  // For every row object, create a personalized email/document from a template and send
+  // it to the appropriate person.
+  for (var i = 0; i < objects.length; ++i) {
+    // Get a row object
+    var rowData = objects[i];
+    var copyBody = fillInTemplateFromObject(copyBody, rowData);
   }
-  
+    // Put in a page break between each user, but only after the first one
+    //if( i > 0) {
+    //  var pgBrk = body.appendPageBreak();
+    //}
+  var adviceNbr = water_no + " " + Utilities.formatDate(new Date(), tz, "yyyy/MM/dd") + " v01"; // get watering number and date
+  var doc_name = season + config.DOC_PREFIX + adviceNbr;
+
   // Create the PDF file, rename it if required and delete the doc copy
     
   copyDoc.saveAndClose()
 
   var newFile = DriveApp.createFile(copyFile.getAs('application/pdf'))  
 
-  if (PDF_FILE_NAME !== '') {
+  if (doc_name !== '') {
   
-    newFile.setName(PDF_FILE_NAME)
+    newFile.setName(doc_name)
   } 
   
   copyFile.setTrashed(true)
-  
-  SpreadsheetApp.getUi().alert('New PDF file created in the root of your Google Drive')
   
 } // createPdf()
 
@@ -217,4 +205,217 @@ function sendEmail(emailAddress, attachment){
         htmlBody: emailTemplate });
 }
 
+
+// -- ===================================================================================
+
+// https://www.labnol.org/code/19892-merge-multiple-google-documents
+
+/* -- appendTable() - Creates and appends a new Table - This method will also append an
+      empty paragraph after the table, since Google Docs documents cannot end with a table.
+*/
+
+function mergeGoogleDocs() {
+
+  var docIDs = ['documentID_1','documentID_2','documentID_3','documentID_4'];
+  var baseDoc = DocumentApp.openById(docIDs[0]);
+
+  var body = baseDoc.getActiveSection();
+
+  for (var i = 1; i < docIDs.length; ++i ) {
+    var otherBody = DocumentApp.openById(docIDs[i]).getActiveSection();
+    var totalElements = otherBody.getNumChildren();
+    for( var j = 0; j < totalElements; ++j ) {
+      var element = otherBody.getChild(j).copy();
+      var type = element.getType();
+      if( type == DocumentApp.ElementType.PARAGRAPH )
+        body.appendParagraph(element);
+      else if( type == DocumentApp.ElementType.TABLE )
+        body.appendTable(element);
+      else if( type == DocumentApp.ElementType.LIST_ITEM )
+        body.appendListItem(element);
+      else
+        throw new Error("Unknown element type: "+type);
+    }
+  }
+}
+// -- ===================================================================================
+
+// https://stackoverflow.com/questions/29032656/google-app-script-merge-multiple-documents-remove-all-line-breaks-and-sent-as
+
+function mergeGoogleDocs2() {
+// set folder ID were we should look for files to merge  
+  var folder = DriveApp.getFolderById('0BwqMAWnXi8hMmljM3FZpaowb1'); 
+  var docIDs = [];
+  var files = folder.getFiles();
+
+  while (files.hasNext()){
+    file = files.next();
+    docIDs.push(file.getId());
+  }
+// check if we have some ids  
+  Logger.log(docIDs); 
+// set document id of doc which will contain all merged documents  
+  var baseDoc = DocumentApp.openById('0BwqMAWnXi8hMmljM3FZpaowb1');
+// clear the whole document and start with empty page
+  baseDoc.getBody().clear();
+  var body = baseDoc.getActiveSection();
+
+  for (var i = 1; i < docIDs.length; ++i ) {
+    var otherBody = DocumentApp.openById(docIDs[i]).getActiveSection();    
+    var totalElements = otherBody.getNumChildren();
+    for( var j = 0; j < totalElements; ++j ) {
+      var element = otherBody.getChild(j).copy();
+      var type = element.getType();
+      if( type == DocumentApp.ElementType.PARAGRAPH )
+        body.appendParagraph(element);
+      else if( type == DocumentApp.ElementType.TABLE )
+        body.appendTable(element);
+      else if( type == DocumentApp.ElementType.LIST_ITEM )
+        body.appendListItem(element);
+      else
+        throw new Error("Unknown element type: "+type);
+    }
+  }
+  // after merging all docs, invoke function to remove all line breaks in the just merged document
+  removeMultipleLineBreaks();
+
+  //email document
+  emailDocument();
+}
+
+function removeMultipleLineBreaks(element) {
+  if (!element) {
+    // set document id of doc where to remove all line breaks 
+    element = DocumentApp.openById('0BwqMAWnXi8hMmljM3FZpaowb1').getBody();
+  }
+  var parent = element.getParent();
+  // Remove empty paragraphs
+  if (element.getType() == DocumentApp.ElementType.PARAGRAPH 
+      && element.asParagraph().getText().replace(/\s/g, '') == '') {
+    if (!(parent.getType() == DocumentApp.ElementType.BODY_SECTION 
+         && parent.getChildIndex(element) == parent.getNumChildren() - 1)) {
+      element.removeFromParent();
+    }
+  // Remove duplicate newlines in text
+  } else if (element.getType() == DocumentApp.ElementType.TEXT) {
+    var text = element.asText();
+    var content = text.getText();
+    var matches;
+    // Remove duplicate carriage returns within text.
+    if (matches = content.match(/\r\s*\r/g)) {
+      for (var i = matches.length - 1; i >= 0; i--) {
+        var match = matches[i];
+        var startIndex = content.lastIndexOf(match);
+        var endIndexInclusive = startIndex + match.length - 1;
+        text.deleteText(startIndex + 1, endIndexInclusive);
+      }
+    }
+    // Grab the text again.
+    content = text.getText();
+    // Remove carriage returns at the end of the text.
+    if (matches = content.match(/\r\s*$/)) {
+      var match = matches[0];
+      text.deleteText(content.length - match.length, content.length - 1);
+    }
+    // Remove carriage returns at the start of the text.
+    if (matches = content.match(/^\s*\r/)) {
+      var match = matches[0];
+      text.deleteText(0, match.length - 1);
+    }
+  // Recursively look in child elements
+  } else if (element.getNumChildren) {
+    for (var i = element.getNumChildren() - 1; i >= 0; i--) {
+      var child = element.getChild(i);
+      removeMultipleLineBreaks(child);
+    }
+  }
+}
+
+function emailDocument() {
+  //Replace this email address with your own email address
+  var email = "sample@email.com"; 
+
+  var fileToAttach = DriveApp.getFileById('Put your file ID here').getAs('application/pdf');
+
+  var message = "This is a test message";
+  var subject = "New Merged Document";
+
+ // Send an email with an attachment: a file from Google Drive
+ MailApp.sendEmail(email, subject, message, {
+     attachments: [fileToAttach]
+ });
+}
+
+// -- ===================================================================================
+// https://gist.github.com/elkusbry/3e16557f1f12a1fa5a32c9e6d69b51ad
+
+function generateShareholderPDF() {
+  var sharePrice = 24.85;
+  
+  var spreadsheetId = '1MdZjiDC44RHh5Z_xWPXKK79B2x9XYDx4Hq3nqgm27ys';
+  var rangeName = 'Sheet1!A1:B50';
+  var values = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName).values;
+  
+  var outputDocId = '1kr5btUNI03l1jEfiRsCBbxzsmTAjwuC7jn5_n87F3hY';
+  var shareholderStatementTemplateID = '1smaAifCE_P1K-JJF18mlokzQ9Lq_GIqyvv9GHgrNX7A';
+  
+  var templateBody = DocumentApp.openById(shareholderStatementTemplateID).getBody();
+  var body = DocumentApp.openById(outputDocId).getBody();
+  
+  body.clear();
+  
+  if (!values) {
+    Logger.log('No data found.');
+  } else {
+    for (var row = 0; row < values.length; row++) {
+      var shareholderName = values[row][0];      
+      var shareCount = values[row][1];
+      var shareValue = shareCount * sharePrice;
+      
+      var statementHeader = templateBody.getChild(1).copy();
+      var statementInvestor = templateBody.getChild(3).copy();
+      var statementContent = templateBody.getChild(5).copy();
+      var statementOwnership = templateBody.getChild(7).copy();
+      
+      body.appendTable(statementHeader);
+      body.appendTable(statementInvestor);
+      body.appendTable(statementContent);
+      body.appendTable(statementOwnership);
+      
+      body.replaceText('{{shareholderName}}', shareholderName);
+      body.replaceText('{{shareCount}}', shareCount);
+      body.replaceText('{{shareValue}}', '$' + shareValue.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'));
+      
+      Logger.log(shareCount, shareValue);
+      
+      body.appendPageBreak()
+    }
+  }
+}
+
+
+
+// -- ===================================================================================
+function testgetdata() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  //var dataSheet = ss.getSheetByName('Order_Detail');
+  //var dataSheet = ss.getSheetByName('Current_Order');
+  //var dataSheet = ss.getSheetByName('Water_Charges');
+  //var dataSheet = ss.getSheetByName('Water_Users');
+  //var dataSheet = ss.getSheetByName('MI_Charges');
+  //var dataSheet = ss.getSheetByName('Water_Order');
+  //var dataSheet = ss.getSheetByName('Report_Header');
+  //var dataRange = dataSheet.getRange(7, 4, dataSheet.getLastRow() - 6, dataSheet.getLastColumn() - 3);
+  var dataSheet = ss.getSheetByName("Report_Data");
+  var dataRange = dataSheet.getRange(3, 1, dataSheet.getLastRow() - 2, dataSheet.getLastColumn());
+
+  var objects = getRowsData(dataSheet, dataRange);
+  for (var i = 0; i < objects.length; ++i) {
+    // Get a row object
+    var rowData = objects[i];
+    Logger.log(rowData);;
+  }
+}  
+  
+  
 

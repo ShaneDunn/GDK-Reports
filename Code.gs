@@ -24,6 +24,7 @@ var WATERSYN_SS_ID = "1ou_tJmY4t-e0umPLEMbGHaGXEFi8wcee1dAAUwiqmNQ"; // "Water S
 // var ERROR_SHEET = 'Errors';
 var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
 var now = new Date();
+var sDate = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
 
 /* =========== Setup Menu ======================= */
 /**
@@ -143,6 +144,7 @@ function run_report(report, action) {
     if (config.templateDocID) {
       try {
         log_('Creating Report: ' + config['Report_Name']);
+        var body = createPDF(config.templateDocID, action);
         // sheet = getOrCreateSheet_(config['sheet-name']);
         // populateSheetWithCSV_(sheet, config.url, config['http-username'], config['http-password']);
       } catch (error) {

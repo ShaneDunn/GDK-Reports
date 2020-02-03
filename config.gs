@@ -25,7 +25,7 @@ var CONFIG_SHEET = 'Configuration';
        as key-value pairs.
  */
 function getConfigsStartingAtCol_(sheet, colIndex) {
-  var config = {}, rowIndex, key, value, columnDef, tblName;
+  var config = {}, rowIndex, key, value, dvalue, columnDef, tblName;
   var range = sheet.getRange(1, colIndex, sheet.getLastRow(), 2);
 
   columnDef = false;
@@ -35,15 +35,16 @@ function getConfigsStartingAtCol_(sheet, colIndex) {
 
   for (rowIndex = 2; rowIndex <= range.getLastRow(); ++rowIndex) {
     key = range.getCell(rowIndex, 1).getValue();
-    value = escapeQuotes(range.getCell(rowIndex, 2).getValue());
+    value = range.getCell(rowIndex, 2).getValue();
+    dvalue = escapeQuotes(range.getCell(rowIndex, 2).getDisplayValue());
     if (value) {
       if ((key == 'start-date' || key == 'end-date') && value instanceof Date) {
         // Utilities.formatDate is too complicated since it requires a time zone
         // which can be configured by account or per sheet.
-        value = formatGaDate_(value);
+        dvalue = formatGaDate_(value);
         
       } else if ((key == 'start-index' || key == 'max-results') && typeof value == 'number') {
-        value = value.toString(); 
+        dvalue = value.toString(); 
       }
       var trailNum = getTrailingNumber_(key)
       if ( columnDef && trailNum ) {
@@ -58,7 +59,7 @@ function getConfigsStartingAtCol_(sheet, colIndex) {
           config[tblName] = [];
         }
       } else {
-        config[key] = value;
+        config[key] = dvalue;
       }
     }
   }
