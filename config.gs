@@ -202,12 +202,22 @@ function createConfig() {
 function loadNewConfig(sheet) {
   var headerNumber = getLastNumber_(sheet);
   var config = [
-    ["Report_name_" + headerNumber, "value_" + headerNumber],
-    ['Report_Name', 'Water Statement'],
-    ['templateDocID', '10OlSE9c8__vLaqPydUnZQbSqNvQmxvogttx-wsWiVsE'],
-    ['DOC_PREFIX', 'Water Statement - '],
-    ['DUMMY_PARA', 'Remove'],
-    ['WS_TABLE', 'Watering Record']
+    ["Report_name_" + headerNumber, "value_" + headerNumber],           // Report Configuration
+    ['Report_Name', 'Water Statement'],                                 // GDK Report Name
+    ['templateDocID', '10OlSE9c8__vLaqPydUnZQbSqNvQmxvogttx-wsWiVsE'],  // Template Document ID
+    ['DOC_PREFIX', ' Water Statement - '],                              // File Name Prefix
+    ['emailText_docid', '1VYD6-MCCul5UPXGzZRhAGnYYfKRFJ0zm'],           // Email Message Template - Text
+    ['emailTextName', 'WaterStatement_tmplt.txt'],                      // Email Message Template - Text
+    ['emailHTML_docid', '121aO17W0zjdpt34gecCuOt8QOIIjbwCK'],           // Email Message Template - HTML
+    ['emailHTMLname', 'WaterStatement_tmplt.html'],                     // Email Message Template - HTML
+    ['reportTable', 'Report_Data'],                                     // Data Table
+    ['rT_start_row', '3'],                                              // Data Table Start Row
+    ['rT_start_column', '1'],                                           // Data Table Start Column
+    ['supTable', 'Order_Detail'],                                       // Suplementary Data Table
+    ['sT_start_row', '7'],                                              // Suplementary Data Table Start Row
+    ['sT_start_column', '4'],                                           // Suplementary Data Table Start Column
+    ['sT_placeholder', '<<1>>'],                                        // Suplementary Data Table Placeholder
+    ['sT_ph_actual', '<<wateringNo>>']                                  // Suplementary Data Table Placeholder Actual Template Variable
   ];
   //Logger.log(config);
   sheet.getRange(1, sheet.getLastColumn() + 1, config.length, 2).setValues(config);
